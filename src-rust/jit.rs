@@ -62,7 +62,7 @@ impl JitVal {
 }
 
 impl Jit {
-    fn new() -> Jit {
+    pub fn new() -> Jit {
         let lljit = unsafe {
             let builder = LLVMOrcCreateLLJITBuilder();
             let mut ptr = null_mut();
@@ -71,5 +71,8 @@ impl Jit {
             ptr
         };
         Self { lljit }
+    }
+    pub fn compile(self: &Arc<Self>) -> JitFnPure {
+        todo!()
     }
 }

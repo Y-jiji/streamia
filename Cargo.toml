@@ -5,7 +5,7 @@ description = "Stream based audio processing. "
 authors = ["Y-jiji"]
 license = ""
 repository = ""
-default-run = "app"
+default-run = "streamia"
 edition = "2021"
 rust-version = "1.60"
 
@@ -13,7 +13,7 @@ rust-version = "1.60"
 
 [[bin]]
 path = "src-rust/main.rs"
-name = "app"
+name = "streamia"
 
 [build-dependencies]
 tauri-build = { version = "1.5.1", features = [] }

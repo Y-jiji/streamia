@@ -24,16 +24,6 @@ pub use llvm_sys_150 as llvm;
 pub use llvm_sys_160 as llvm;
 
 fn main() {
-    unsafe {
-        // use machine code jit
-        use llvm::target::*;
-        use llvm::execution_engine::*;
-        LLVMLinkInMCJIT();
-        LLVM_InitializeNativeAsmParser(); 
-        LLVM_InitializeNativeAsmPrinter();
-        LLVM_InitializeNativeDisassembler();
-        LLVM_InitializeNativeTarget();
-    }
     tauri::Builder::default()
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

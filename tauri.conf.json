@@ -1,12 +1,12 @@
 {
   "build": {
     "beforeBuildCommand": "npm run build",
-    "beforeDevCommand": "npm start",
-    "devPath": "http://0.0.0.0:3000",
-    "distDir": "./dist"
+    "beforeDevCommand": "npm run dev",
+    "devPath": "http://localhost:5173",
+    "distDir": "dist"
   },
   "package": {
-    "productName": "Digital Audio Workspace",
+    "productName": "streamia",
     "version": "0.1.0"
   },
   "tauri": {
@@ -28,7 +28,7 @@
         "icons/icon.icns",
         "icons/icon.ico"
       ],
-      "identifier": "tj-yang.daw.dev",
+      "identifier": "com.tauri.dev",
       "longDescription": "",
       "macOS": {
         "entitlements": null,
@@ -57,7 +57,7 @@
         "fullscreen": false,
         "height": 600,
         "resizable": true,
-        "title": "Digital Audio Workspace",
+        "title": "Streamia",
         "width": 800
       }
     ]
