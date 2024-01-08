@@ -20,7 +20,7 @@ tauri-build = { version = "1.5.1", features = [] }
 
 [dependencies]
 serde_json = "1.0"
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "1.0", features = ["derive", "rc"] }
 tauri = { version = "1.5.4", features = [] }
 llvm-sys-80 = { package = "llvm-sys", version = "80.3.0", optional = true }
 llvm-sys-90 = { package = "llvm-sys", version = "90.2.0", optional = true }
