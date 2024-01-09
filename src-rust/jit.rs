@@ -1,78 +1,101 @@
 use serde::{Serialize, Deserialize};
-use std::{ptr::null_mut, sync::Arc};
-use crate::llvm::{
-    orc2::{*, lljit::*}, *,  
-};
+use std::{ptr::null_mut, sync::{LazyLock, Mutex}};
+use crate::{llvm::{
+    orc2::{*, lljit::*},   
+    error::*, target::*
+}, ctx::Expr};
+
+fn __init_native__() { unsafe {
+    static BARRIER: LazyLock<Mutex<bool>> = LazyLock::new(
+        || Mutex::new(false)
+    );
+    // make sure: 
+    // + this protected section will run only once 
+    // + after quiting, internal procedures must be completed by some thread
+    let guard = BARRIER.lock().unwrap();
+    if !*guard {
+        LLVM_InitializeNativeAsmParser();
+        LLVM_InitializeNativeAsmPrinter();
+        LLVM_InitializeNativeTarget();
+        LLVM_InitializeAllTargetInfos();
+    }
+    drop(guard);
+} }
 
 #[derive(Debug)]
 pub struct Jit {
     lljit: *mut LLVMOrcOpaqueLLJIT,
 }
 
-#[derive(Debug, Clone)]
-pub struct JitFnPure {
-    rc: Arc<Jit>,
-    ty: (*mut LLVMType, *mut LLVMType),
-    state: JitVal,
-    inner: fn (*const u8, *mut u8, *mut u8),
-}
-
-impl JitFnPure {
-    pub fn init(&self) -> JitFnMut {
-        JitFnMut {
-            rc: Arc::clone(&self.rc), 
-            ty: self.ty, 
-            state: self.state.clone(), 
-            inner: self.inner,
-        }
+unsafe fn err_to_string(raw: LLVMErrorRef) -> String {
+    let mut msg = LLVMGetErrorMessage(raw);
+    let mut vec = vec![];
+    while *msg != b'\0' as i8 {
+        vec.push(*msg as u8);
+        msg = msg.offset(1);
     }
+    LLVMConsumeError(raw);
+    return String::from_utf8_lossy(&vec).to_string();
 }
 
-#[derive(Debug, Clone)]
-pub struct JitFnMut {
-    rc: Arc<Jit>,
-    ty: (*mut LLVMType, *mut LLVMType),
-    state: JitVal,
-    inner: fn (*const u8, *mut u8, *mut u8),
-}
-
-impl JitFnMut {
-    pub fn apply(&mut self, input: JitVal) -> JitVal {
-        let mut out = JitVal::new(Arc::clone(&self.rc), self.ty.1);
-        (self.inner)(
-            input.inner.as_ptr(), 
-            self.state.inner.as_mut_ptr(), 
-            out.inner.as_mut_ptr()
-        ); 
-        return out;
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct JitVal {
-    rc: Arc<Jit>,
-    ty: *mut LLVMType,
-    inner: Vec<u8>,
-}
-
-impl JitVal {
-    fn new(rc: Arc<Jit>, ty: *mut LLVMType) -> Self {
-        todo!()
-    }
+pub struct JVal<'a> {
+    x: &'a (),
 }
 
 impl Jit {
-    pub fn new() -> Jit {
-        let lljit = unsafe {
-            let builder = LLVMOrcCreateLLJITBuilder();
-            let mut ptr = null_mut();
-            LLVMOrcCreateLLJIT(&mut ptr, builder);
-            LLVMOrcDisposeLLJITBuilder(builder);
-            ptr
-        };
-        Self { lljit }
-    }
-    pub fn compile(self: &Arc<Self>) -> JitFnPure {
+    pub fn new() -> Result<Jit, String> { unsafe {
+        __init_native__(); // initialize machine
+
+        // target machine builder
+        let mut builder_trg = null_mut();
+        let err = LLVMOrcJITTargetMachineBuilderDetectHost(
+            &mut builder_trg);
+        if builder_trg.is_null() { Err(
+            String::new() + 
+            "LLVMOrcJITTargetMachineBuilderDetectHost: " + 
+            &err_to_string(err)
+        )? }
+        
+        // jit builder
+        // SAFETY: builder_trg owned by builder_jit
+        let builder_jit = LLVMOrcCreateLLJITBuilder();
+        if builder_jit.is_null() { Err(
+            String::new() + 
+            "LLVMOrcCreateLLJITBuilder: return null pointer"
+        )? }
+        LLVMOrcLLJITBuilderSetJITTargetMachineBuilder(
+            builder_jit, builder_trg);
+
+        // build and handle errors
+        // SAFETY: builder_jit will disposed after lljit creation
+        let mut lljit = null_mut();
+        let err = LLVMOrcCreateLLJIT(&mut lljit, builder_jit);
+        if lljit.is_null() { Err(
+            String::new() + 
+            "LLVMOrcCreateLLJIT: " + 
+            &err_to_string(err)
+        )? }
+        Ok(Jit { lljit })
+    }}
+    pub fn compile(&self, x: &Expr) -> JVal<'_> {
+        // compile expression to value
         todo!()
+    }
+}
+
+impl Drop for Jit {
+    fn drop(&mut self) {
+        unsafe { LLVMOrcDisposeLLJIT(self.lljit); }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn jit_create() {
+        let jit = Jit::new();
+        println!("{jit:?}");
     }
 }
