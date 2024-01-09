@@ -24,7 +24,7 @@ fn __init_native__() { unsafe {
 
 #[derive(Debug)]
 pub struct Jit {
-    lljit: *mut LLVMOrcOpaqueLLJIT,
+    inner: *mut LLVMOrcOpaqueLLJIT,
 }
 
 unsafe fn err_to_string(raw: LLVMErrorRef) -> String {
@@ -39,6 +39,7 @@ unsafe fn err_to_string(raw: LLVMErrorRef) -> String {
 }
 
 pub struct JVal<'a> {
+    id: usize,
     x: &'a (),
 }
 
@@ -66,8 +67,8 @@ impl Jit {
         LLVMOrcLLJITBuilderSetJITTargetMachineBuilder(
             builder_jit, builder_trg);
 
-        // build and handle errors
-        // SAFETY: builder_jit will disposed after lljit creation
+        // build jit
+        // SAFETY: builder_jit will dispose after lljit creation
         let mut lljit = null_mut();
         let err = LLVMOrcCreateLLJIT(&mut lljit, builder_jit);
         if lljit.is_null() { Err(
@@ -75,7 +76,7 @@ impl Jit {
             "LLVMOrcCreateLLJIT: " + 
             &err_to_string(err)
         )? }
-        Ok(Jit { lljit })
+        Ok(Jit { inner: lljit })
     }}
     pub fn compile(&self, x: &Expr) -> JVal<'_> {
         // compile expression to value
@@ -85,7 +86,7 @@ impl Jit {
 
 impl Drop for Jit {
     fn drop(&mut self) {
-        unsafe { LLVMOrcDisposeLLJIT(self.lljit); }
+        unsafe { LLVMOrcDisposeLLJIT(self.inner); }
     }
 }
 
