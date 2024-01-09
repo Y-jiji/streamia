@@ -236,7 +236,7 @@ impl Expr {
             }
             TimeSec { x } => {
                 x.check(ctx, local)?;
-                if !matches!(x.ty, Ty::Time | Ty::Part { .. }) {
+                if !matches!(x.ty, Ty::Time | Ty::Part) {
                     Err(TyError::Mismatch {
                         expr: x.clone(), 
                         declared: x.ty.clone(), 
@@ -252,20 +252,21 @@ impl Expr {
                 }
                 Ok(())
             }
-            PartSec { x } => {
+            PartRel { x } |
+            PartAbs { x } => {
                 x.check(ctx, local)?;
                 if !matches!(x.ty, Ty::Part { .. }) {
                     Err(TyError::Mismatch {
                         expr: x.clone(), 
                         declared: x.ty.clone(), 
-                        synthesized: Ty::Part { start: 0.0, end: f64::INFINITY }
+                        synthesized: Ty::Part
                     })?
                 }
-                if self.ty != Ty::Fp {
+                if self.ty != Ty::Time {
                     Err(TyError::Mismatch {
                         expr: Box::new(self.clone()), 
                         declared: self.ty.clone(), 
-                        synthesized: Ty::Fp
+                        synthesized: Ty::Time
                     })?
                 }
                 Ok(())
@@ -292,6 +293,26 @@ impl Expr {
                 }
                 Ok(())
             }
+            TimeZip { x, secs, default } => {
+                x.check(ctx, local)?;
+                default.check(ctx, local)?;
+                let synthesized = Ty::Fn(Box::new((Ty::Time, Ty::dup(Ty::Fp, secs.len()))));
+                if self.ty != synthesized {
+                    Err(TyError::Mismatch {
+                        expr: Box::new(self.clone()), 
+                        declared: self.ty.clone(), 
+                        synthesized,
+                    })?
+                }
+                if x.ty != Ty::Fn(Box::new((Ty::Time, Ty::Fp))) {
+                    Err(TyError::Mismatch {
+                        expr: x.clone(), 
+                        declared: x.ty.clone(), 
+                        synthesized: Ty::Fn(Box::new((Ty::Time, Ty::Fp)))
+                    })?
+                }
+                Ok(())
+            }
             // in case we want to add more variants
             #[allow(unreachable_patterns)] _ => { todo!() }
         }
@@ -300,10 +321,14 @@ impl Expr {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Primitive {
-    // timeode<Time>: Time -> (Fp, Fp, Fp, Fp, ...)
+    // timezip: (Time -> Fp) -> (Time -> (Fp, (Fp, ...)))
+    TimeZip { x: Box<Expr>, secs: Vec<f64>, default: Box<Expr> },
+    // timeode: (Time -> (Fp, (Fp, ...)) -> (Fp, (Fp, ...))) -> (Time -> (Fp, (Fp, ...)))
     TimeODE { transform: Vec<Expr>, init: Vec<f64> },
-    // partsec: Part -> Fp
-    PartSec { x: Box<Expr> },
+    // partrel: Part -> Time
+    PartRel { x: Box<Expr> },
+    // partabs: Part -> Time
+    PartAbs { x: Box<Expr> },
     // timesec: Time -> Fp
     TimeSec { x: Box<Expr> },
     // apply function (can also be used as let in function)
@@ -340,7 +365,7 @@ pub enum Ty {
     Fn(Box<(Ty, Ty)>),
     Fp,
     Time,
-    Part { start: f64, end: f64 }, // Time's subtype
+    Part, // Time's subtype
     Bool,
     Prod(Box<(Ty, Ty)>),
     Enum(Box<(Ty, Ty)>),
