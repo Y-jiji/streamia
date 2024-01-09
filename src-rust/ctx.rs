@@ -270,8 +270,27 @@ impl Expr {
                 }
                 Ok(())
             }
-            TimeODE { equation, init, args } => {
-                todo!();
+            TimeODE { transform, init } => {
+                let args = init.len();
+                local.push(Ty::Time);
+                local.extend([Ty::Fp].into_iter().cycle().take(args));
+                for x in transform { x.check(ctx, local)?; }
+                local.resize_with(local.len() - args, || panic!());
+                local.pop();
+                for x in transform {
+                    if x.ty != Ty::Fp {
+                        Err(TyError::Mismatch { expr: Box::new(x.clone()), declared: x.ty.clone(), synthesized: Ty::Fp })?  
+                    }
+                }
+                let synthesized = Ty::Fn(Box::new((Ty::Time, Ty::dup(Ty::Fp, args))));
+                if self.ty != synthesized {
+                    Err(TyError::Mismatch {
+                        expr: Box::new(self.clone()), 
+                        declared: self.ty.clone(), 
+                        synthesized
+                    })?
+                }
+                Ok(())
             }
             // in case we want to add more variants
             #[allow(unreachable_patterns)] _ => { todo!() }
@@ -281,9 +300,8 @@ impl Expr {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Primitive {
-    // odestream<Part>: ((Part -> Fp) -> (Part -> Fp)) -> (Part -> Fp)
-    // odestream<Time>: ((Time -> Fp) -> (Time -> Fp)) -> (Time -> Fp)
-    TimeODE { equation: Vec<Expr>, init: f64, args: usize },
+    // timeode<Time>: Time -> (Fp, Fp, Fp, Fp, ...)
+    TimeODE { transform: Vec<Expr>, init: Vec<f64> },
     // partsec: Part -> Fp
     PartSec { x: Box<Expr> },
     // timesec: Time -> Fp
@@ -327,6 +345,16 @@ pub enum Ty {
     Prod(Box<(Ty, Ty)>),
     Enum(Box<(Ty, Ty)>),
     Auto, // automatically inferred
+}
+
+impl Ty {
+    pub fn dup(ty: Ty, n: usize) -> Ty {
+        assert!(n >= 1);
+        if n == 1 { ty }
+        else {
+            Ty::Prod(Box::new((ty.clone(), Ty::dup(ty, n-1))))
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
